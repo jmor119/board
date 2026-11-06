@@ -166,7 +166,7 @@ export default function BoardPage({
       {demo && (
         <div className="demo-banner">
           <span>
-            <strong>Practice board</strong> · Try everything. Changes stay in this browser.
+            <strong>Practice board</strong> · Try everything. Refresh to start fresh.
           </span>
           <button onClick={onLogin}>
             Create your team’s space <LogIn size={13} />
@@ -239,7 +239,7 @@ export default function BoardPage({
             ) : (
               <>
                 <Check size={11} />
-                {demo ? 'Saved in this browser' : 'All changes saved'}
+                {demo ? 'Resets on refresh' : 'All changes saved'}
               </>
             )}
           </div>

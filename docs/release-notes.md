@@ -6,6 +6,14 @@ Live application: https://board-4500b.web.app
 
 Practice board: https://board-4500b.web.app/demo
 
+## Interaction fixes — 7 November 2026
+
+- Fixed double-clicking notes creating another note. Pointer capture now stays on the clicked object, so the browser routes its double-click to the editor instead of the canvas background. Double-clicking inside an open editor preserves the draft and selects words normally.
+- Practice boards now start fresh on refresh; notes, votes, actions, agenda and timer state are kept only for the current demo session. Updated the demo labels to make this clear.
+- The visual timer now clears clockwise from twelve o'clock, leaving the shrinking red area ahead of the moving boundary.
+
+Browser regression checks: existing note opens with unchanged object count; empty-space double-click adds exactly one focused note; double-clicking its empty placeholder opens that same note; word selection preserves an unsaved draft; dragging and panning remain usable; refreshing after editing notes and a one-minute timer restores six sample notes and the idle ten-minute Reflect stage. The countdown's cleared angle increased clockwise and the red remainder was visually checked.
+
 ## Delivered
 
 React/TypeScript application on Firebase Hosting, backed by Firestore and Firebase Authentication. Google, email/password and anonymous guest providers are enabled. The database is in Sydney. The project remains on its existing Spark plan; no paid plan upgrade was performed.

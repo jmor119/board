@@ -312,7 +312,9 @@ export default forwardRef<CanvasHandle, Props>(function Canvas(props, ref) {
     if (editing) return;
     e.preventDefault();
     e.stopPropagation();
-    root.current?.setPointerCapture(e.pointerId);
+    // Keep clicks on the object: capturing on the canvas retargets dblclick
+    // to the background and creates a new note instead of editing this one.
+    e.currentTarget.setPointerCapture(e.pointerId);
     const p = point(e);
     if (tool === 'hand' || space.current || e.button === 1) {
       gesture.current = { kind: 'pan', sx: e.clientX, sy: e.clientY, x: view.x, y: view.y };
@@ -398,8 +400,9 @@ export default forwardRef<CanvasHandle, Props>(function Canvas(props, ref) {
   async function end(e: ReactPointerEvent) {
     const g = gesture.current;
     gesture.current = null;
-    if (root.current?.hasPointerCapture(e.pointerId))
-      root.current.releasePointerCapture(e.pointerId);
+    const captureTarget = e.target as Element;
+    if (captureTarget.hasPointerCapture(e.pointerId))
+      captureTarget.releasePointerCapture(e.pointerId);
     if (!g) return;
     if (g.kind === 'draw') {
       const points = g.points!;
@@ -487,6 +490,7 @@ export default forwardRef<CanvasHandle, Props>(function Canvas(props, ref) {
                 onPointerDown={(e) => start(e, o)}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
+                  if ((e.target as Element).closest('textarea')) return;
                   if ((!o.locked || host) && o.type !== 'draw') {
                     setSelected(o.id);
                     setEditing(o.id);

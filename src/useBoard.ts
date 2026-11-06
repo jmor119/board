@@ -29,12 +29,6 @@ type State = {
   actions: Action[];
 };
 function demoState(): State {
-  try {
-    const saved = localStorage.getItem('board-demo-v1');
-    if (saved) return JSON.parse(saved);
-  } catch {
-    /* Ignore unavailable local storage. */
-  }
   const now = Date.now();
   const board: Board = {
     id: 'demo',
@@ -104,13 +98,6 @@ export function useBoard(boardId: string, demo: boolean, user: User | null) {
       setPending((n) => n - 1);
     }
   };
-  useEffect(() => {
-    if (demo) {
-      try {
-        localStorage.setItem('board-demo-v1', JSON.stringify(state));
-      } catch {}
-    }
-  }, [state, demo]);
   useEffect(() => {
     const on = () => setConnected(true),
       off = () => setConnected(false);

@@ -177,7 +177,7 @@ export function TimerDisplay({
             <div
               className="clock-disk"
               style={{
-                background: `conic-gradient(from 0deg, #df6458 ${ratio * 360}deg, #f4eee7 ${ratio * 360}deg)`,
+                background: `conic-gradient(from 0deg, #f4eee7 ${(1 - ratio) * 360}deg, #df6458 ${(1 - ratio) * 360}deg)`,
               }}
             />
             <span className="clock-center" />

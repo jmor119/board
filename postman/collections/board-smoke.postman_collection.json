@@ -1,0 +1,49 @@
+{
+  "info": {
+    "name": "Board — public service boundaries",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Read-only live smoke checks. Stateful voting and sharing checks run against the Firestore emulator in tests/rules.test.mjs. No admin key or bearer token is stored in this collection."
+  },
+  "variable": [
+    { "key": "hostingUrl", "value": "https://board-4500b.web.app" },
+    { "key": "projectId", "value": "board-4500b" }
+  ],
+  "item": [
+    {
+      "name": "Hosting serves Board",
+      "request": { "method": "GET", "url": "{{hostingUrl}}/" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Hosting responds successfully', () => pm.response.to.have.status(200));",
+              "pm.test('Board application is served', () => pm.expect(pm.response.text()).to.include('Board — Make room for better'));",
+              "pm.test('Content sniffing is disabled', () => pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.equal('nosniff'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Unauthenticated callers cannot enumerate boards",
+      "request": {
+        "method": "GET",
+        "url": "https://firestore.googleapis.com/v1/projects/{{projectId}}/databases/(default)/documents/boards"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Unauthenticated database access is denied', () => pm.expect([401,403]).to.include(pm.response.code));",
+              "pm.test('No board content is returned', () => pm.expect(pm.response.json()).not.to.have.property('documents'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}

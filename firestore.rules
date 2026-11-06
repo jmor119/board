@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function account() { return signed() && request.auth.token.firebase.sign_in_provider != 'anonymous'; }
+    function verified() { return account() && request.auth.token.email_verified == true; }
+    function email() { return request.auth.token.email.lower(); }
+    function teamMember(id) {
+      let t = get(/databases/$(database)/documents/teams/$(id)).data;
+      return account() && (t.ownerId == request.auth.uid || (verified() && email() in t.memberEmails));
+    }
+    function member(b) { return account() && (b.ownerId == request.auth.uid || (verified() && email() in b.invitedEmails) || (b.teamId != '' && teamMember(b.teamId))); }
+    function access(b) { return signed() && (member(b) || (b.publicEnabled && request.time.toMillis() < b.publicUntil)); }
+    function board(id) { return get(/databases/$(database)/documents/boards/$(id)).data; }
+    function host(id) { return account() && board(id).ownerId == request.auth.uid; }
+    function validBoard(b) {
+      return b.keys().hasOnly(['ownerId','title','teamId','invitedEmails','publicEnabled','publicUntil','createdAt','updatedAt','agenda','timer','currentRoundId','template'])
+        && b.title is string && b.title.size() > 0 && b.title.size() <= 140
+        && b.teamId is string && b.invitedEmails is list && b.invitedEmails.size() <= 100
+        && b.publicEnabled is bool && b.publicUntil is number
+        && (!b.publicEnabled || b.publicUntil <= request.time.toMillis() + 86400000)
+        && b.agenda is list && b.agenda.size() > 0 && b.agenda.size() <= 12
+        && b.timer is map && b.timer.stage is int && b.timer.stage >= 0 && b.timer.stage < b.agenda.size()
+        && b.timer.running is bool && b.timer.remaining is number && b.timer.remaining >= 0 && b.timer.remaining <= 14400
+        && b.timer.startedAt is number && b.timer.display in ['both','visual','digital'] && b.timer.autoAdvance is bool
+        && b.currentRoundId is string && b.template is string && b.createdAt is number && b.updatedAt is number;
+    }
+    match /teams/{id} {
+      allow read: if account() && (resource.data.ownerId == request.auth.uid || (verified() && email() in resource.data.memberEmails));
+      allow create: if account() && request.resource.data.ownerId == request.auth.uid && validTeam(request.resource.data);
+      allow update: if account() && resource.data.ownerId == request.auth.uid && request.resource.data.ownerId == resource.data.ownerId && validTeam(request.resource.data);
+      function validTeam(t) { return t.keys().hasOnly(['ownerId','name','memberEmails','createdAt']) && t.name is string && t.name.size() > 0 && t.name.size() <= 100 && t.memberEmails is list && t.memberEmails.size() <= 100 && t.createdAt is number; }
+    }
+    match /templates/{id} {
+      allow read, delete: if account() && resource.data.ownerId == request.auth.uid;
+      allow create, update: if account() && request.resource.data.ownerId == request.auth.uid
+        && (!exists(/databases/$(database)/documents/templates/$(id)) || resource.data.ownerId == request.auth.uid)
+        && request.resource.data.keys().hasOnly(['name','ownerId','objects','createdAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 100
+        && request.resource.data.objects is list && request.resource.data.objects.size() <= 400;
+    }
+    match /boards/{id} {
+      allow get: if access(resource.data);
+      allow list: if member(resource.data);
+      allow create: if account() && request.resource.data.ownerId == request.auth.uid && validBoard(request.resource.data)
+        && (request.resource.data.teamId == '' || teamMember(request.resource.data.teamId));
+      allow update: if account() && resource.data.ownerId == request.auth.uid && request.resource.data.ownerId == resource.data.ownerId
+        && validBoard(request.resource.data) && (request.resource.data.teamId == '' || teamMember(request.resource.data.teamId));
+      allow delete: if account() && resource.data.ownerId == request.auth.uid;
+      match /objects/{objectId} {
+        function validObject(o) {
+          return o.keys().hasOnly(['type','x','y','w','h','text','color','locked','authorId','points','strokeWidth','createdAt','updatedAt'])
+            && o.type in ['note','text','frame','shape','draw'] && o.x is number && o.y is number && o.x >= -100000 && o.x <= 100000 && o.y >= -100000 && o.y <= 100000
+            && o.w is number && o.h is number && o.w >= 1 && o.h >= 1 && o.w <= 5000 && o.h <= 5000
+            && o.text is string && o.text.size() <= 5000 && o.color is string && o.color.matches('#[a-fA-F0-9]{6}')
+            && o.locked is bool && o.authorId is string && o.points is list && o.points.size() <= 4000
+            && o.strokeWidth is number && o.strokeWidth >= 1 && o.strokeWidth <= 30 && o.createdAt is number && o.updatedAt is number;
+        }
+        allow read: if access(board(id));
+        allow create: if access(board(id)) && validObject(request.resource.data) && request.resource.data.authorId == request.auth.uid && (!request.resource.data.locked || host(id));
+        allow update: if access(board(id)) && validObject(request.resource.data) && request.resource.data.authorId == resource.data.authorId
+          && (host(id) || (!resource.data.locked && !request.resource.data.locked));
+        allow delete: if access(board(id)) && (!resource.data.locked || host(id));
+      }
+      match /presence/{uid} {
+        allow read: if access(board(id));
+        allow create, update: if access(board(id)) && signed() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['name','color','x','y','lastSeen','serverTime'])
+          && (!('serverTime' in request.resource.data) || request.resource.data.serverTime == request.time)
+          && request.resource.data.name is string && request.resource.data.name.size() <= 60
+          && request.resource.data.color is string && request.resource.data.color.matches('#[a-fA-F0-9]{6}')
+          && request.resource.data.x is number && request.resource.data.y is number && request.resource.data.lastSeen is number;
+        allow delete: if signed() && request.auth.uid == uid;
+      }
+      match /actions/{actionId} {
+        function validAction(a) { return a.keys().hasOnly(['text','owner','due','done','authorId','createdAt']) && a.text is string && a.text.size() > 0 && a.text.size() <= 1000 && a.owner is string && a.owner.size() <= 100 && a.due is string && a.due.size() <= 10 && a.done is bool && a.authorId is string && a.createdAt is number; }
+        allow read: if access(board(id));
+        allow create: if access(board(id)) && validAction(request.resource.data) && request.resource.data.authorId == request.auth.uid;
+        allow update: if access(board(id)) && validAction(request.resource.data) && request.resource.data.authorId == resource.data.authorId;
+        allow delete: if access(board(id)) && (host(id) || resource.data.authorId == request.auth.uid);
+      }
+      match /rounds/{roundId} {
+        function validRound(r) { return r.keys().hasOnly(['title','budget','hidden','unique','state','targetIds','createdAt']) && r.title is string && r.title.size() <= 100 && r.budget is int && r.budget >= 1 && r.budget <= 20 && r.hidden is bool && r.unique is bool && r.state in ['open','closed'] && r.targetIds is list && r.targetIds.size() <= 400 && r.createdAt is number; }
+        allow read: if access(board(id));
+        allow create: if host(id) && validRound(request.resource.data) && request.resource.data.state == 'open';
+        allow update: if host(id) && validRound(request.resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state']) && request.resource.data.state == 'closed';
+        match /ballots/{uid} {
+          function round() { return get(/databases/$(database)/documents/boards/$(id)/rounds/$(roundId)).data; }
+          allow read: if access(board(id)) && (request.auth.uid == uid || !round().hidden || round().state == 'closed');
+          allow create, update: if access(board(id)) && request.auth.uid == uid && round().state == 'open'
+            && board(id).currentRoundId == roundId
+            && request.resource.data.keys().hasOnly(['votes']) && request.resource.data.votes is list
+            && request.resource.data.votes.size() <= round().budget && request.resource.data.votes.hasOnly(round().targetIds)
+            && (!round().unique || request.resource.data.votes.toSet().size() == request.resource.data.votes.size());
+        }
+      }
+    }
+  }
+}

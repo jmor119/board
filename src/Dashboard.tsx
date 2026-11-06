@@ -43,6 +43,7 @@ export default function Dashboard({
   const [section, setSection] = useState<'boards' | 'templates' | 'team'>('boards'),
     [teamId, setTeamId] = useState(''),
     [search, setSearch] = useState(''),
+    [groupFilter, setGroupFilter] = useState('*'),
     [newBoard, setNewBoard] = useState<Template | null>(null),
     [teamModal, setTeamModal] = useState(false),
     [error, setError] = useState('');
@@ -93,6 +94,10 @@ export default function Dashboard({
         b.title.toLowerCase().includes(search.toLowerCase()),
     )
     .sort((a, b) => b.updatedAt - a.updatedAt);
+  const groups = [...new Set(boards.map((b) => b.group || '').filter(Boolean))].sort();
+  const visibleBoards = boards.filter(
+    (b) => groupFilter === '*' || (b.group || '') === groupFilter,
+  );
   const selectedTeam = teams.find((t) => t.id === teamId);
   const templates = [...builtins, ...saved.data];
   return (
@@ -108,7 +113,10 @@ export default function Dashboard({
             <select
               aria-label="Workspace"
               value={teamId}
-              onChange={(e) => setTeamId(e.target.value)}
+              onChange={(e) => {
+                setTeamId(e.target.value);
+                setGroupFilter('*');
+              }}
             >
               <option value="">Personal workspace</option>
               {teams.map((t) => (
@@ -138,6 +146,10 @@ export default function Dashboard({
           <button className={section === 'team' ? 'active' : ''} onClick={() => setSection('team')}>
             <Users size={19} />
             Your team
+          </button>
+          <button onClick={() => navigate('/integrations')}>
+            <ArrowUpRight size={19} />
+            Connect AI client
           </button>
         </nav>
         <div className="sidebar-note">
@@ -241,8 +253,21 @@ export default function Dashboard({
             </div>
             <div className="section-heading boards-heading">
               <h2>
-                Your boards <span className="count">{boards.length}</span>
+                Your boards <span className="count">{visibleBoards.length}</span>
               </h2>
+              <select
+                aria-label="Board group"
+                value={groupFilter}
+                onChange={(e) => setGroupFilter(e.target.value)}
+              >
+                <option value="*">All groups</option>
+                <option value="">Ungrouped</option>
+                {groups.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
               <div className="search">
                 <Search size={17} />
                 <input
@@ -255,18 +280,21 @@ export default function Dashboard({
             </div>
             {owned.loading ? (
               <p className="muted">Loading your boards…</p>
-            ) : boards.length ? (
+            ) : visibleBoards.length ? (
               <div className="board-grid">
-                {boards.map((b) => (
+                {visibleBoards.map((b) => (
                   <button className="board-card" key={b.id} onClick={() => navigate('/b/' + b.id)}>
                     <BoardThumbnail
                       template={templates.find((t) => t.name === b.template) || builtins[0]}
                     />
                     <div className="board-card-info">
                       <h3>{b.title}</h3>
+                      {b.group && <small className="muted">{b.group}</small>}
                       <span>
                         <Clock3 size={13} />
-                        {new Date(b.createdAt).toLocaleDateString(undefined, {
+                        {new Date(
+                          b.meetingDate ? b.meetingDate + 'T12:00:00' : b.createdAt,
+                        ).toLocaleDateString(undefined, {
                           month: 'short',
                           day: 'numeric',
                         })}
@@ -369,6 +397,8 @@ export default function Dashboard({
           template={newBoard}
           templates={templates}
           teamId={teamId}
+          teams={teams}
+          groups={groups}
           onClose={() => setNewBoard(null)}
           navigate={navigate}
         />
@@ -418,16 +448,23 @@ function NewBoardModal({
   template,
   templates,
   teamId,
+  teams,
+  groups,
   onClose,
   navigate,
 }: {
   template: Template;
   templates: Template[];
   teamId: string;
+  teams: Team[];
+  groups: string[];
   onClose: () => void;
   navigate: (p: string) => void;
 }) {
   const [title, setTitle] = useState('Team retrospective'),
+    [assignedTeam, setAssignedTeam] = useState(teamId),
+    [meetingDate, setMeetingDate] = useState(new Date().toLocaleDateString('en-CA')),
+    [group, setGroup] = useState(''),
     [chosen, setChosen] = useState(template.id),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -442,7 +479,9 @@ function NewBoardModal({
             const boardId = await createBoard(
               title,
               templates.find((t) => t.id === chosen)!,
-              teamId,
+              assignedTeam,
+              meetingDate,
+              group,
             );
             navigate('/b/' + boardId);
           } catch (e) {
@@ -462,6 +501,36 @@ function NewBoardModal({
           />
         </label>
         <label>
+          Meeting date
+          <input type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} />
+        </label>
+        <label>
+          Group
+          <input
+            value={group}
+            maxLength={80}
+            list="new-board-groups"
+            placeholder="e.g. Product team or Sprint retros"
+            onChange={(e) => setGroup(e.target.value)}
+          />
+        </label>
+        <datalist id="new-board-groups">
+          {groups.map((g) => (
+            <option key={g} value={g} />
+          ))}
+        </datalist>
+        <label>
+          Team access
+          <select value={assignedTeam} onChange={(e) => setAssignedTeam(e.target.value)}>
+            <option value="">Only me and invited people</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} - whole team
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           Start from
           <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
             {templates.map((t) => (
@@ -474,7 +543,7 @@ function NewBoardModal({
         <BoardThumbnail template={templates.find((t) => t.id === chosen)!} />
         <p className="fine-print">
           <LockKeyhole size={13} />{' '}
-          {teamId
+          {assignedTeam
             ? 'Visible to your team. Public sharing starts off.'
             : 'Private to you until you invite someone.'}
         </p>

@@ -13,11 +13,12 @@ import { googleLogin, emailLogin, errorMessage, guestLogin, resetPassword } from
 import { Logo, Modal } from './ui';
 import Dashboard from './Dashboard';
 import BoardPage from './BoardPage';
+import McpConnect from './McpConnect';
 
 export default function App() {
   const { user, ready } = useUser();
   const [path, setPath] = useState(location.pathname),
-    [login, setLogin] = useState(false);
+    [login, setLogin] = useState(['/login', '/signup'].includes(location.pathname));
   useEffect(() => {
     const f = () => setPath(location.pathname);
     addEventListener('popstate', f);
@@ -39,7 +40,9 @@ export default function App() {
     );
   return (
     <>
-      {demo ? (
+      {path === '/connect' || path === '/integrations' ? (
+        <McpConnect user={user} onLogin={() => setLogin(true)} navigate={navigate} />
+      ) : demo ? (
         <BoardPage
           key="demo"
           boardId="demo"
@@ -68,7 +71,15 @@ export default function App() {
       ) : (
         <Landing navigate={navigate} onLogin={() => setLogin(true)} />
       )}
-      {login && <LoginModal onClose={() => setLogin(false)} />}
+      {login && (!user || user.isAnonymous) && (
+        <LoginModal
+          initialCreate={path === '/signup'}
+          onClose={() => {
+            setLogin(false);
+            if (path === '/login' || path === '/signup') navigate('/');
+          }}
+        />
+      )}
     </>
   );
 }
@@ -128,8 +139,14 @@ function GuestGate({ onLogin }: { onLogin: () => void }) {
     </main>
   );
 }
-function LoginModal({ onClose }: { onClose: () => void }) {
-  const [create, setCreate] = useState(false),
+function LoginModal({
+  onClose,
+  initialCreate = false,
+}: {
+  onClose: () => void;
+  initialCreate?: boolean;
+}) {
+  const [create, setCreate] = useState(initialCreate),
     [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [name, setName] = useState(''),

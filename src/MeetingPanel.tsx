@@ -21,7 +21,8 @@ import type { BoardStore } from './useBoard';
 import type { Stage, Timer as TimerType } from './types';
 import { remainingTime, clockText, countVotes } from './domain.mjs';
 import { id } from './firebase';
-import { Modal } from './ui';
+import { Modal, download } from './ui';
+import { actionsCsv } from './action-export.mjs';
 
 export default function MeetingPanel({
   store,
@@ -542,6 +543,19 @@ function Actions({ store, host }: { store: BoardStore; host: boolean }) {
     [busy, setBusy] = useState(false);
   return (
     <div className="actions-panel">
+      <button
+        className="secondary"
+        disabled={!store.actions.length}
+        onClick={() =>
+          download(
+            `board-${store.board?.id}-actions.csv`,
+            actionsCsv(store.actions),
+            'text/csv;charset=utf-8',
+          )
+        }
+      >
+        Download actions (CSV)
+      </button>
       <h3>Leave with a next step.</h3>
       <p className="muted">Small, clear commitments make the difference.</p>
       <div className="action-list">

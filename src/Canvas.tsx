@@ -55,7 +55,18 @@ type Gesture = {
   object?: BoardObject;
   points?: number[];
   lastSent?: number;
+  corner?: string;
 };
+function resizeObject(o: BoardObject, dx: number, dy: number, corner: string) {
+  const w = clamp(o.w + (corner.includes('w') ? -dx : dx), 80, 2000);
+  const h = clamp(o.h + (corner.includes('n') ? -dy : dy), 50, 2000);
+  return {
+    w,
+    h,
+    x: corner.includes('w') ? o.x + o.w - w : o.x,
+    y: corner.includes('n') ? o.y + o.h - h : o.y,
+  };
+}
 const tools = [
   { id: 'select', name: 'Select (V)', Icon: MousePointer2 },
   { id: 'hand', name: 'Pan (H)', Icon: Hand },
@@ -307,8 +318,12 @@ export default forwardRef<CanvasHandle, Props>(function Canvas(props, ref) {
       setTool('select');
     } catch {}
   }
-  function start(e: ReactPointerEvent, object?: BoardObject, resize = false) {
-    if ((e.target as HTMLElement).closest('textarea,button')) return;
+  function start(e: ReactPointerEvent, object?: BoardObject, corner = '') {
+    if (
+      (e.target as HTMLElement).closest('textarea') ||
+      (!corner && (e.target as HTMLElement).closest('button'))
+    )
+      return;
     if (editing) return;
     e.preventDefault();
     e.stopPropagation();
@@ -352,9 +367,10 @@ export default forwardRef<CanvasHandle, Props>(function Canvas(props, ref) {
     }
     if (object) {
       setSelected(object.id);
-      if (object.locked && !host) return;
+      if (object.locked) return;
       gesture.current = {
-        kind: resize ? 'resize' : 'move',
+        kind: corner ? 'resize' : 'move',
+        corner,
         sx: p.x,
         sy: p.y,
         x: object.x,
@@ -386,7 +402,7 @@ export default forwardRef<CanvasHandle, Props>(function Canvas(props, ref) {
     const o = g.object!;
     const changes =
       g.kind === 'resize'
-        ? { w: clamp(o.w + p.x - g.sx, 80, 2000), h: clamp(o.h + p.y - g.sy, 50, 2000) }
+        ? resizeObject(o, p.x - g.sx, p.y - g.sy, g.corner || 'se')
         : {
             x: clamp(g.x + p.x - g.sx, -100000, 100000),
             y: clamp(g.y + p.y - g.sy, -100000, 100000),
@@ -559,13 +575,35 @@ export default forwardRef<CanvasHandle, Props>(function Canvas(props, ref) {
                     )}
                   </>
                 )}
-                {isSelected && !o.locked && o.type !== 'draw' && (
-                  <span
-                    className="resize-handle"
-                    onPointerDown={(e) => start(e, o, true)}
-                    title="Drag to resize"
-                  />
-                )}
+                {isSelected &&
+                  !o.locked &&
+                  o.type !== 'draw' &&
+                  editing !== o.id &&
+                  ['nw', 'ne', 'sw', 'se'].map((corner) => (
+                    <button
+                      key={corner}
+                      className={`resize-handle resize-${corner}`}
+                      aria-label={`Resize ${corner}`}
+                      title="Drag to resize, or use arrow keys"
+                      onPointerDown={(e) => start(e, o, corner)}
+                      onDoubleClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key))
+                          return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const step = e.shiftKey ? 20 : 5;
+                        void change(
+                          resizeObject(
+                            o,
+                            e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0,
+                            e.key === 'ArrowDown' ? step : e.key === 'ArrowUp' ? -step : 0,
+                            corner,
+                          ),
+                        );
+                      }}
+                    />
+                  ))}
                 {canVote && (
                   <div className="note-vote" onPointerDown={(e) => e.stopPropagation()}>
                     <button

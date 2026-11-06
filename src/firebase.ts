@@ -8,8 +8,6 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
-  sendEmailVerification,
-  sendPasswordResetEmail,
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -40,11 +38,26 @@ export async function emailLogin(email: string, password: string, create: boolea
   await updateProfile(result.user, {
     displayName: name.trim().slice(0, 60) || email.split('@')[0],
   });
-  await sendEmailVerification(result.user);
+  await requestAccountEmail('verify-email');
   return result;
 }
-export const resetPassword = (email: string) => sendPasswordResetEmail(auth, email);
-export const verifyEmail = () => auth.currentUser && sendEmailVerification(auth.currentUser);
+async function requestAccountEmail(kind: 'verify-email' | 'password-reset', email?: string) {
+  const token = kind === 'verify-email' ? await auth.currentUser?.getIdToken() : undefined;
+  const response = await fetch(
+    'https://australia-southeast1-chronological-9f536.cloudfunctions.net/boardAccountEmail',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ kind, ...(email ? { email } : {}) }),
+    },
+  );
+  if (!response.ok) throw new Error('Could not request the email. Please try again shortly.');
+}
+export const resetPassword = (email: string) => requestAccountEmail('password-reset', email);
+export const verifyEmail = () => requestAccountEmail('verify-email');
 export function objectDefaults(part: Partial<BoardObject>, uid: string): BoardObject {
   const now = Date.now();
   return {
@@ -69,7 +82,13 @@ export const withoutId = <T extends { id: string }>(o: T) => {
   const { id: _id, ...rest } = o;
   return rest;
 };
-export async function createBoard(title: string, template: Template, teamId = '') {
+export async function createBoard(
+  title: string,
+  template: Template,
+  teamId = '',
+  meetingDate = '',
+  group = '',
+) {
   const user = auth.currentUser;
   if (!user || user.isAnonymous) throw new Error('Sign in to create a private board.');
   const boardId = id(),
@@ -79,6 +98,8 @@ export async function createBoard(title: string, template: Template, teamId = ''
     ownerId: user.uid,
     title: title.trim() || 'Untitled retrospective',
     teamId,
+    meetingDate,
+    group: group.trim(),
     invitedEmails: [],
     publicEnabled: false,
     publicUntil: 0,

@@ -11,6 +11,8 @@ export type Board = {
   id: string;
   ownerId: string;
   title: string;
+  meetingDate?: string;
+  group?: string;
   teamId: string;
   invitedEmails: string[];
   publicEnabled: boolean;

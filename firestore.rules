@@ -14,8 +14,10 @@ service cloud.firestore {
     function board(id) { return get(/databases/$(database)/documents/boards/$(id)).data; }
     function host(id) { return account() && board(id).ownerId == request.auth.uid; }
     function validBoard(b) {
-      return b.keys().hasOnly(['ownerId','title','teamId','invitedEmails','publicEnabled','publicUntil','createdAt','updatedAt','agenda','timer','currentRoundId','template'])
+      return b.keys().hasOnly(['ownerId','title','meetingDate','group','teamId','invitedEmails','publicEnabled','publicUntil','createdAt','updatedAt','agenda','timer','currentRoundId','template'])
         && b.title is string && b.title.size() > 0 && b.title.size() <= 140
+        && (!('meetingDate' in b) || (b.meetingDate is string && (b.meetingDate == '' || b.meetingDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}'))))
+        && (!('group' in b) || (b.group is string && b.group.size() <= 80))
         && b.teamId is string && b.invitedEmails is list && b.invitedEmails.size() <= 100
         && b.publicEnabled is bool && b.publicUntil is number
         && (!b.publicEnabled || b.publicUntil <= request.time.toMillis() + 86400000)

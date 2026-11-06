@@ -3210,3 +3210,138 @@ kbd {
     font-size: 8px;
   }
 }
+
+/* Board organisation and deliberate, usable resize targets. */
+.board-meta {
+  font-size: 11px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+  min-height: 20px;
+  justify-content: flex-start;
+}
+.board-meta:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.team-sharing {
+  margin: 16px 0;
+}
+.teammate-picker {
+  border: 1px solid #dedfd4;
+  border-radius: 10px;
+  padding: 12px;
+  max-height: 220px;
+  overflow: auto;
+}
+.teammate-picker label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+.teammate-picker input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex-shrink: 0;
+}
+.resize-handle {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  z-index: 5;
+  touch-action: none;
+  box-shadow: 0 0 0 3px #fff8;
+}
+.resize-handle:focus-visible {
+  outline: 3px solid #314e43;
+  outline-offset: 3px;
+}
+.resize-nw {
+  left: -11px;
+  top: -11px;
+  right: auto;
+  bottom: auto;
+  cursor: nwse-resize;
+}
+.resize-ne {
+  right: -11px;
+  top: -11px;
+  bottom: auto;
+  cursor: nesw-resize;
+}
+.resize-sw {
+  left: -11px;
+  bottom: -11px;
+  right: auto;
+  cursor: nesw-resize;
+}
+.resize-se {
+  right: -11px;
+  bottom: -11px;
+  cursor: nwse-resize;
+}
+
+.connections-page {
+  min-height: 100vh;
+  background: #f6f7ef;
+  padding: 28px;
+}
+.connections-page > header {
+  display: flex;
+  justify-content: space-between;
+  max-width: 1100px;
+  margin: 0 auto 40px;
+}
+.connections-card {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 36px;
+  background: #fff;
+  border: 1px solid #dedfd4;
+  border-radius: 18px;
+}
+.connections-card h1 {
+  font-size: 38px;
+  margin: 12px 0 20px;
+}
+.connections-card h2 {
+  margin: 28px 0 14px;
+}
+.connections-card li {
+  margin: 12px 0;
+  line-height: 1.6;
+}
+.connection-permissions {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+.connection-permissions > svg {
+  flex-shrink: 0;
+  margin-top: 15px;
+}
+.connections-card label {
+  display: block;
+  margin: 18px 0;
+}
+@media (max-width: 600px) {
+  .connections-page {
+    padding: 18px;
+  }
+  .connections-card {
+    padding: 22px;
+  }
+  .connections-card h1 {
+    font-size: 30px;
+  }
+  .connection-permissions {
+    display: block;
+  }
+}

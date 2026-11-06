@@ -21,10 +21,12 @@ import {
   Pencil,
 } from 'lucide-react';
 import { useBoard } from './useBoard';
-import { useNow } from './hooks';
+import { useNow, useLiveList } from './hooks';
+import { query, where } from 'firebase/firestore';
+import type { Team, Board } from './types';
 import { countVotes, clockText, remainingTime } from './domain.mjs';
 import { cursorColors } from './templates';
-import { errorMessage, saveTemplate } from './firebase';
+import { errorMessage, saveTemplate, auth, db, collection } from './firebase';
 import { Logo, Modal, download } from './ui';
 import Canvas, { type CanvasHandle } from './Canvas';
 import MeetingPanel from './MeetingPanel';
@@ -225,6 +227,21 @@ export default function BoardPage({
               {host && <ChevronDown size={13} />}
             </button>
           )}
+          <button
+            className="board-meta text-button"
+            disabled={!host}
+            onClick={() => setModal('details')}
+            aria-label="Edit board date and group"
+          >
+            {board.meetingDate
+              ? new Date(board.meetingDate + 'T12:00:00').toLocaleDateString(undefined, {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })
+              : 'Set meeting date'}
+            {board.group ? ` | ${board.group}` : ''}
+          </button>
           <div className="save-state">
             {!store.connected ? (
               <>
@@ -373,6 +390,9 @@ export default function BoardPage({
           {toast}
         </div>
       )}
+      {modal === 'details' && (
+        <BoardDetailsModal board={board} update={store.patchBoard} onClose={() => setModal('')} />
+      )}
       {modal === 'share' && (
         <ShareModal
           store={store}
@@ -477,6 +497,27 @@ function ShareModal({
     [email, setEmail] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
+  const user = auth.currentUser;
+  const ownTeams = useLiveList<Team>(
+    host && !demo && user ? query(collection(db, 'teams'), where('ownerId', '==', user.uid)) : null,
+    'share-own-' + user?.uid + host + demo,
+  );
+  const joinedTeams = useLiveList<Team>(
+    host && !demo && user?.emailVerified
+      ? query(
+          collection(db, 'teams'),
+          where('memberEmails', 'array-contains', user.email?.toLowerCase()),
+        )
+      : null,
+    'share-joined-' + user?.uid + user?.emailVerified + host + demo,
+  );
+  const teams = [
+    ...new Map([...ownTeams.data, ...joinedTeams.data].map((t) => [t.id, t])).values(),
+  ];
+  const selectedTeam = teams.find((t) => t.id === b.teamId);
+  const teammates = [...new Set(teams.flatMap((t) => t.memberEmails))]
+    .filter((e) => e !== user?.email?.toLowerCase())
+    .sort();
   const publicOpen = b.publicEnabled && b.publicUntil > Date.now() + store.clockOffset;
   const copy = async () => {
     try {
@@ -516,6 +557,64 @@ function ShareModal({
             </div>
             <span className="pill">Always protected</span>
           </div>
+          {host && !demo && (
+            <div className="stack team-sharing">
+              <label>
+                Whole team
+                <select
+                  aria-label="Board team access"
+                  value={b.teamId}
+                  disabled={busy}
+                  onChange={(e) => void update({ teamId: e.target.value })}
+                >
+                  <option value="">Only me and invited people</option>
+                  {b.teamId && !selectedTeam && <option value={b.teamId}>Current team</option>}
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedTeam && (
+                <p className="fine-print">
+                  Everyone in {selectedTeam.name} can open this board after signing in. Changes to
+                  team membership also change board access.
+                </p>
+              )}
+              {teammates.length > 0 && (
+                <fieldset className="teammate-picker">
+                  <legend>Select individual teammates</legend>
+                  {teammates.map((e) => {
+                    const throughTeam = selectedTeam?.memberEmails.includes(e);
+                    return (
+                      <label key={e}>
+                        <input
+                          type="checkbox"
+                          checked={!!throughTeam || b.invitedEmails.includes(e)}
+                          disabled={busy || !!throughTeam}
+                          onChange={(event) =>
+                            void update({
+                              invitedEmails: event.target.checked
+                                ? [...new Set([...b.invitedEmails, e])]
+                                : b.invitedEmails.filter((x) => x !== e),
+                            })
+                          }
+                        />
+                        <span>
+                          {e}
+                          {throughTeam && <small> - team access</small>}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              )}
+              {(ownTeams.error || joinedTeams.error) && (
+                <p className="error">{ownTeams.error || joinedTeams.error}</p>
+              )}
+            </div>
+          )}
           {host && !demo && (
             <form
               className="inline-form"
@@ -707,6 +806,83 @@ function TemplateModal({
         <button className="primary" disabled={busy}>
           {demo ? 'Sign in to save templates' : busy ? 'Saving…' : 'Save template'}
           <BookOpen size={17} />
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+function BoardDetailsModal({
+  board,
+  update,
+  onClose,
+}: {
+  board: Board;
+  update: (p: Partial<Board>) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(board.title),
+    [date, setDate] = useState(board.meetingDate || ''),
+    [group, setGroup] = useState(board.group || ''),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  const user = auth.currentUser;
+  const knownBoards = useLiveList<Board>(
+    user ? query(collection(db, 'boards'), where('ownerId', '==', user.uid)) : null,
+    'detail-groups-' + user?.uid,
+  );
+  const groups = [...new Set(knownBoards.data.map((b) => b.group).filter(Boolean))];
+  return (
+    <Modal title="Board details" onClose={onClose}>
+      <form
+        className="stack"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try {
+            await update({ title: title.trim(), meetingDate: date, group: group.trim() });
+            onClose();
+          } catch (e) {
+            setError(errorMessage(e));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label>
+          Board name
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={140}
+            required
+          />
+        </label>
+        <label>
+          Meeting date
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </label>
+        <label>
+          Group
+          <input
+            value={group}
+            onChange={(e) => setGroup(e.target.value)}
+            maxLength={80}
+            list="board-detail-groups"
+            placeholder="e.g. Product team or Sprint retros"
+          />
+        </label>
+        <datalist id="board-detail-groups">
+          {groups.map((g) => (
+            <option key={g} value={g} />
+          ))}
+        </datalist>
+        <p className="fine-print">
+          Groups organise your boards. Use Share to control who can access them.
+        </p>
+        {error && <p className="error">{error}</p>}
+        <button className="primary" disabled={busy || !title.trim()}>
+          Save details
         </button>
       </form>
     </Modal>

@@ -19,7 +19,78 @@ async function request(url, method = 'GET', body) {
   return data;
 }
 const mode = process.argv[2];
-if (mode === 'setup') {
+if (mode === 'mail-permissions' || mode === 'mcp-permissions') {
+  const fn = await request(
+    'https://cloudfunctions.googleapis.com/v2/projects/chronological-9f536/locations/australia-southeast1/functions/sendQueuedMail',
+  );
+  const serviceAccount = fn.serviceConfig.serviceAccountEmail;
+  if (!serviceAccount) throw new Error('Mail runtime account not found');
+  const mcp = mode === 'mcp-permissions';
+  const roleId = mcp ? 'boardMcpData' : 'boardAccountMail';
+  const roleName = `projects/${PROJECT}/roles/${roleId}`;
+  const roles = await request(`https://iam.googleapis.com/v1/projects/${PROJECT}/roles`);
+  if (!roles.roles?.some((r) => r.name === roleName))
+    await request(`https://iam.googleapis.com/v1/projects/${PROJECT}/roles`, 'POST', {
+      roleId,
+      role: {
+        title: mcp ? 'Board MCP data access' : 'Board account mail',
+        description: mcp
+          ? 'Read and edit Board data through authenticated MCP tools with per-board membership checks.'
+          : 'Read Board accounts and generate account email links for the shared FierceSpeed mail queue.',
+        includedPermissions: mcp
+          ? [
+              'datastore.databases.get',
+              'datastore.entities.get',
+              'datastore.entities.list',
+              'datastore.entities.create',
+              'datastore.entities.update',
+              'datastore.entities.delete',
+            ]
+          : ['firebaseauth.users.get', 'firebaseauth.users.sendEmail'],
+        stage: 'GA',
+      },
+    });
+  const base = `https://cloudresourcemanager.googleapis.com/v1/projects/${PROJECT}`;
+  const policy = await request(`${base}:getIamPolicy`, 'POST', {});
+  const member = `serviceAccount:${serviceAccount}`;
+  let binding = policy.bindings.find((b) => b.role === roleName);
+  if (!binding) {
+    binding = { role: roleName, members: [] };
+    policy.bindings.push(binding);
+  }
+  if (!binding.members.includes(member)) {
+    binding.members.push(member);
+    await request(`${base}:setIamPolicy`, 'POST', { policy });
+  }
+  console.log(
+    mcp
+      ? 'Shared runtime has Board-only data access for MCP:'
+      : 'Shared mail runtime can read Board accounts and generate action links:',
+    serviceAccount,
+  );
+} else if (mode === 'domain-inspect' || mode === 'domain-connect') {
+  const domain = 'board.fiercespeed.nz';
+  const parent = `https://firebasehosting.googleapis.com/v1beta1/projects/${PROJECT}/sites/${PROJECT}`;
+  const list = await request(`${parent}/customDomains`);
+  let entry = list.customDomains?.find((d) => d.name.endsWith('/' + domain));
+  if (!entry && mode === 'domain-connect') {
+    const operation = await request(`${parent}/customDomains?customDomainId=${domain}`, 'POST', {});
+    console.log('Custom domain requested', operation.name);
+  }
+  if (entry) console.log('Hosting domain', JSON.stringify(entry));
+  else console.log('Hosting domain not yet present');
+  const base = `https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT}`;
+  const config = await request(`${base}/config`);
+  if (mode === 'domain-connect' && !config.authorizedDomains.includes(domain)) {
+    await request(`${base}/config?updateMask=authorizedDomains`, 'PATCH', {
+      authorizedDomains: [...config.authorizedDomains, domain],
+    });
+    console.log('Authorized custom domain for sign-in');
+  }
+  console.log('Authorized domains', config.authorizedDomains);
+  const provider = await request(`${base}/defaultSupportedIdpConfigs/google.com`);
+  console.log('Google provider', { enabled: provider.enabled, clientId: provider.clientId });
+} else if (mode === 'setup') {
   for (const service of [
     'firestore.googleapis.com',
     'identitytoolkit.googleapis.com',

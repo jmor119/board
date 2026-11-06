@@ -2,7 +2,7 @@
 
 A focused, collaborative retrospective workspace, built with React, TypeScript and Firebase.
 
-Live: [board-4500b.web.app](https://board-4500b.web.app) · [Practice board](https://board-4500b.web.app/demo)
+Live: [board.fiercespeed.nz](https://board.fiercespeed.nz) · [Practice board](https://board.fiercespeed.nz/demo) · [Connect an AI client](https://board.fiercespeed.nz/integrations)
 
 ## Product scope
 
@@ -31,6 +31,22 @@ Local browser memory is used for Firestore caching (no persistent offline databa
 
 ## Operations
 
-Firebase Hosting serves the SPA. Firestore Standard and Firebase Authentication provide the backend without a paid Cloud Functions dependency. Keep Firestore in the chosen region and use the console for usage budgets and operational monitoring. Security rules and indexes live in this repository. Google OAuth requires an enabled Google provider and a valid project OAuth client.
+Firebase Hosting serves the SPA. Firestore Standard and Firebase Authentication store Board data and identities. Branded account emails and the MCP server run in the existing Chronological Cloud Functions project, using its mail queue and Resend delivery. Board's project has not been upgraded to a paid plan; these shared functions use Chronological's existing billing. Keep Firestore in the chosen region and use the console for usage budgets and operational monitoring. Security rules and indexes live in this repository. Google OAuth requires an enabled Google provider and a valid project OAuth client.
 
 The deployed project uses Sydney (`australia-southeast1`), with Google, email/password and anonymous sign-in enabled. Hosting domains and localhost are authorized. Deploy with `npm run build`, then `firebase deploy --only hosting,firestore --project board-4500b`. Review [release verification and limits](docs/release-notes.md) before a larger rollout.
+
+Google sign-in and account email action links use `board.fiercespeed.nz`. The OAuth web client must include that origin and `https://board.fiercespeed.nz/__/auth/handler`. Account verification and password resets go through `boardAccountEmail`, then the shared mail queue; invitations are still shared directly by link.
+
+## AI clients and action downloads
+
+Open [Connect with MCP](https://board.fiercespeed.nz/integrations) for setup and connection revocation. Compatible clients need remote Streamable HTTP, OAuth and PKCE support. Use this server URL:
+
+```text
+https://australia-southeast1-chronological-9f536.cloudfunctions.net/boardMcp/mcp
+```
+
+The 22 tools cover board creation and editing, notes/shapes/drawings, built-in and saved templates, teams and board access, meeting agendas and timers, voting, and actions. `export_actions` returns CSV or JSON as an MCP resource. The board's Actions panel also has a Download actions (CSV) button. CSV exports escape spreadsheet formulas.
+
+Users sign in with a verified Board account and approve the client. Each tool rechecks current board/team membership; owners control sharing and facilitation. Public guest links do not grant MCP access, and hidden ballots remain private until revealed. Connections can be revoked from the integrations page. Client support varies; the live protocol flow is tested, but every third-party client has not been certified.
+
+The backend source and unit/emulator tests live in the sibling `Chronological/functions/src/board_mcp` and `Chronological/functions/src/mail` directories. Its runtime service account has project-scoped Board user-email and Firestore roles; keys are not shipped to clients. Backend changes require a separate targeted deployment in the Chronological project.

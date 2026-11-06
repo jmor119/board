@@ -8,8 +8,8 @@ import {
 import {
   doc,
   setDoc,
-  getDoc,
-  getDocs,
+  getDocFromServer as getDoc,
+  getDocsFromServer as getDocs,
   collection,
   updateDoc,
   deleteDoc,
@@ -120,6 +120,18 @@ test(
           ),
         );
       });
+      await t.test('dates and groups are owner-only and bounded', async () => {
+        await assertSucceeds(
+          updateDoc(doc(host, 'boards', 'private'), {
+            meetingDate: '2026-11-07',
+            group: 'Product retros',
+          }),
+        );
+        await assertFails(updateDoc(doc(member, 'boards', 'private'), { group: 'Takeover' }));
+        await assertFails(updateDoc(doc(host, 'boards', 'private'), { group: 'x'.repeat(81) }));
+        await assertFails(updateDoc(doc(host, 'boards', 'private'), { meetingDate: 123 }));
+        await assertFails(updateDoc(doc(host, 'boards', 'private'), { meetingDate: 'tomorrow' }));
+      });
       await t.test('participants cannot change sharing or impersonate an owner', async () => {
         await assertFails(
           updateDoc(doc(member, 'boards', 'private'), {
@@ -191,9 +203,7 @@ test(
           }),
         );
         await assertFails(getDocs(collection(guest, 'boards')));
-        await assertSucceeds(
-          updateDoc(doc(host, 'boards', 'private'), { publicUntil: Date.now() - 1000 }),
-        );
+        await assertSucceeds(updateDoc(doc(host, 'boards', 'private'), { publicUntil: 0 }));
         await assertFails(getDoc(doc(guest, 'boards', 'private')));
         await assertFails(
           updateDoc(doc(guest, 'boards', 'private', 'objects', 'guest-note'), {

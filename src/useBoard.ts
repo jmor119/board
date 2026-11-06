@@ -33,6 +33,8 @@ function demoState(): State {
   const board: Board = {
     id: 'demo',
     title: 'A little better, together',
+    meetingDate: new Date().toLocaleDateString('en-CA'),
+    group: 'Team retrospectives',
     ownerId: 'demo-user',
     teamId: '',
     invitedEmails: [],

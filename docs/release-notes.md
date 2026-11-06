@@ -2,9 +2,19 @@
 
 Released 7 November 2026 (New Zealand time).
 
-Live application: https://board-4500b.web.app
+Live application: https://board.fiercespeed.nz
 
-Practice board: https://board-4500b.web.app/demo
+Practice board: https://board.fiercespeed.nz/demo
+
+## Teams, account emails and MCP update — 7 November 2026
+
+- Connected the custom domain, Google OAuth callback and account email action links. Published the Board product page at https://fiercespeed.nz/board.html with signup, login, demo and MCP links.
+- Added editable meeting dates and board groups, group filtering, whole-team assignment and a selectable teammate list for private sharing.
+- Added four larger resize handles and keyboard resizing for shapes and other resizable objects. Locked objects must be unlocked before moving or resizing.
+- Routed branded verification and password-reset emails through Chronological's existing queue and Resend delivery, with rate limits and generic password-reset responses.
+- Added an OAuth/PKCE MCP server with 22 tools, explicit client consent, revocation, current membership checks, private voting and CSV/JSON action exports. Added Download actions (CSV) to the web app.
+
+Validation: Board production build and formatting passed; four unit tests and 12 Security Rules tests passed. Chronological's 766 unit tests and 513 full emulator tests passed, followed by six targeted MCP/email emulator tests. The live MCP flow discovered all 22 tools and created a disposable board, applied a template, created an action and exported CSV. Real verification and reset emails reached the provider's documented test inboxes; temporary identities and mail records were removed. The static marketing checker passed all 24 HTML pages. Browser checks covered date/group editing, team selection and shape resizing; individual third-party MCP clients have not all been tested.
 
 ## Interaction fixes — 7 November 2026
 
@@ -46,7 +56,7 @@ The installed Postman CLI does not support `postman status`. The collection ran 
 - Public expiry is enforced by server rules and clears the guest UI. It cannot retract previously copied content. Owners and private members retain their authorized access.
 - Saved templates belong to their creator. Team membership grants access to team boards; template sharing across an entire organization is a future extension.
 - The app does not send invitation emails automatically. Add a verified member email and share the board link directly.
-- Video conferencing, uploads, enterprise SSO, external integrations, and multi-touch pinch zoom are outside this release. Mobile has pan and zoom buttons.
+- Video conferencing, uploads, enterprise SSO, and multi-touch pinch zoom are outside this release. Mobile has pan and zoom buttons. AI clients can integrate through MCP.
 
 ## Repeatable checks
 

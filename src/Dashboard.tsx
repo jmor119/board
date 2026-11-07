@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { query, where } from 'firebase/firestore';
 import {
@@ -12,7 +12,6 @@ import {
   LockKeyhole,
   Clock3,
   X,
-  Mail,
   BookOpen,
   ChevronDown,
 } from 'lucide-react';
@@ -22,8 +21,6 @@ import {
   collection,
   createBoard,
   createTeam,
-  updateDoc,
-  doc,
   logout,
   errorMessage,
   verifyEmail,
@@ -32,6 +29,7 @@ import { useLiveList } from './hooks';
 import { builtins } from './templates';
 import type { Board, Team, Template } from './types';
 import { Empty, Logo, Modal } from './ui';
+import TeamSettings from './TeamSettings';
 
 export default function Dashboard({
   user,
@@ -77,6 +75,13 @@ export default function Dashboard({
     () => [...new Map([...ownedTeams.data, ...invitedTeams.data].map((t) => [t.id, t])).values()],
     [ownedTeams.data, invitedTeams.data],
   );
+  useEffect(() => {
+    const invitedTeam = new URLSearchParams(location.search).get('team');
+    if (invitedTeam && teams.some((t) => t.id === invitedTeam)) {
+      setTeamId(invitedTeam);
+      history.replaceState({}, '', location.pathname);
+    }
+  }, [teams]);
   const teamBoards = useLiveList<Board>(
     teamId ? query(collection(db, 'boards'), where('teamId', '==', teamId)) : null,
     'teamBoards' + teamId,
@@ -359,7 +364,12 @@ export default function Dashboard({
               </button>
             </section>
             {selectedTeam ? (
-              <TeamSettings team={selectedTeam} user={user} onError={setError} />
+              <TeamSettings
+                key={selectedTeam.id}
+                team={selectedTeam}
+                user={user}
+                onError={setError}
+              />
             ) : (
               <>
                 <div className="team-grid">
@@ -383,8 +393,7 @@ export default function Dashboard({
                       </button>
                     }
                   >
-                    Create a workspace and add teammates by email. Then share your board link
-                    directly.
+                    Create a workspace and invite teammates by email. Share a board link directly.
                   </Empty>
                 )}
               </>
@@ -601,81 +610,5 @@ function CreateTeamModal({
         </button>
       </form>
     </Modal>
-  );
-}
-function TeamSettings({
-  team,
-  user,
-  onError,
-}: {
-  team: Team;
-  user: User;
-  onError: (s: string) => void;
-}) {
-  const [email, setEmail] = useState('');
-  const owner = team.ownerId === user.uid;
-  const update = async (emails: string[]) => {
-    try {
-      await updateDoc(doc(db, 'teams', team.id), { memberEmails: emails });
-      setEmail('');
-    } catch (e) {
-      onError(errorMessage(e));
-    }
-  };
-  return (
-    <section className="settings-card">
-      <h2>{team.name}</h2>
-      <p className="muted">
-        Members sign in with the verified email below to access this team’s boards. Share a board
-        link with them directly.
-      </p>
-      <div className="member-row">
-        <span className="avatar">
-          <Users size={17} />
-        </span>
-        <b>Team creator</b>
-        <span className="pill">Owner</span>
-      </div>
-      {team.memberEmails.map((e) => (
-        <div className="member-row" key={e}>
-          <span className="avatar">{e[0].toUpperCase()}</span>
-          <span>{e}</span>
-          {owner && (
-            <button
-              className="icon-button"
-              aria-label={'Remove ' + e}
-              onClick={() => update(team.memberEmails.filter((x) => x !== e))}
-            >
-              <X size={16} />
-            </button>
-          )}
-        </div>
-      ))}
-      {owner && (
-        <form
-          className="inline-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            update([...new Set([...team.memberEmails, email.trim().toLowerCase()])]);
-          }}
-        >
-          <label className="sr-only" htmlFor="team-email">
-            Teammate email
-          </label>
-          <input
-            id="team-email"
-            type="email"
-            placeholder="teammate@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <button className="primary">
-            <Mail size={16} />
-            Add teammate
-          </button>
-        </form>
-      )}
-    </section>
   );
 }

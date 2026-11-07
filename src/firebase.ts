@@ -58,6 +58,30 @@ async function requestAccountEmail(kind: 'verify-email' | 'password-reset', emai
 }
 export const resetPassword = (email: string) => requestAccountEmail('password-reset', email);
 export const verifyEmail = () => requestAccountEmail('verify-email');
+export type TeamInviteStatus = {
+  email: string;
+  connection: 'connected' | 'unverified' | 'not_connected';
+  delivery: 'never_sent' | 'queued' | 'sending' | 'sent' | 'failed' | 'skipped' | 'unknown';
+  requestedAt: number | null;
+  sentAt: number | null;
+  nextSendAt: number;
+};
+export async function teamInvitation(action: 'status' | 'send', teamId: string, email?: string) {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error('Sign in to manage invitations.');
+  const response = await fetch(
+    'https://australia-southeast1-chronological-9f536.cloudfunctions.net/boardTeamInvites',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action, teamId, ...(email ? { email } : {}) }),
+    },
+  );
+  const result = await response.json();
+  if (!response.ok)
+    throw new Error(result.error || 'Could not manage invitations. Please try again.');
+  return result as { members?: TeamInviteStatus[]; queued?: boolean; nextSendAt?: number };
+}
 export function objectDefaults(part: Partial<BoardObject>, uid: string): BoardObject {
   const now = Date.now();
   return {

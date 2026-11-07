@@ -6,6 +6,12 @@ Live application: https://board.fiercespeed.nz
 
 Practice board: https://board.fiercespeed.nz/demo
 
+## Team invitation delivery and status — 7 November 2026
+
+Existing team memberships now show Send invite when no email has been requested, and Resend invite after the first request. New teammates receive a branded invitation through the shared Chronological queue. The owner can refresh account status and see queued, sent or failed delivery separately. Connected means an enabled, verified Board account with team access; it is not online presence or a read receipt. Existing teammates are retained and are not automatically emailed by deployment.
+
+Invitation requests require the team owner, a verified sender and current membership. Delivery rechecks access, skips superseded invitations and retains status beyond queue expiry. A one-minute resend cooldown and daily limits prevent repeated sends. Tested legacy memberships, verified/unverified/disabled accounts, concurrent resends, removed membership and delivery failures. The backend unit suite passed 768 tests and the targeted shared-mail emulator suite passed 46 tests; Board's build, formatting and four unit tests passed.
+
 ## Teams, account emails and MCP update — 7 November 2026
 
 - Connected the custom domain, Google OAuth callback and account email action links. Published the Board product page at https://fiercespeed.nz/board.html with signup, login, demo and MCP links.
@@ -55,7 +61,7 @@ The installed Postman CLI does not support `postman status`. The collection ran 
 - Public guests are anonymous browser identities. Opening another browser can provide another identity and vote budget. Use private, verified accounts where stronger participant identity matters.
 - Public expiry is enforced by server rules and clears the guest UI. It cannot retract previously copied content. Owners and private members retain their authorized access.
 - Saved templates belong to their creator. Team membership grants access to team boards; template sharing across an entire organization is a future extension.
-- The app does not send invitation emails automatically. Add a verified member email and share the board link directly.
+- Team invitations support sending and resending email from Your team. Adding an email directly to a private board still requires sharing the board link directly.
 - Video conferencing, uploads, enterprise SSO, and multi-touch pinch zoom are outside this release. Mobile has pan and zoom buttons. AI clients can integrate through MCP.
 
 ## Repeatable checks

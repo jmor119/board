@@ -35,7 +35,9 @@ Firebase Hosting serves the SPA. Firestore Standard and Firebase Authentication 
 
 The deployed project uses Sydney (`australia-southeast1`), with Google, email/password and anonymous sign-in enabled. Hosting domains and localhost are authorized. Deploy with `npm run build`, then `firebase deploy --only hosting,firestore --project board-4500b`. Review [release verification and limits](docs/release-notes.md) before a larger rollout.
 
-Google sign-in and account email action links use `board.fiercespeed.nz`. The OAuth web client must include that origin and `https://board.fiercespeed.nz/__/auth/handler`. Account verification and password resets go through `boardAccountEmail`, then the shared mail queue; invitations are still shared directly by link.
+Google sign-in and account email action links use `board.fiercespeed.nz`. The OAuth web client must include that origin and `https://board.fiercespeed.nz/__/auth/handler`. Account verification and password resets go through `boardAccountEmail`, then the shared mail queue. Team owners use `boardTeamInvites` to send or resend branded invitations. Direct private-board additions still require sharing the board link.
+
+Under Your team, owners can see each member's account connection status and separate invitation delivery status. Connected means an enabled, verified Board account can access the team; it does not indicate online presence or whether an email was read. Legacy memberships have no delivery record and show No invitation email sent until the owner chooses Send invite. Adding a new teammate sends an invitation; delivery failures keep membership intact and allow retry. Resends have a one-minute cooldown and daily limits. The mail processor rechecks current ownership and membership before delivery. Delivery history is retained separately from the expiring mail queue. Invitation links open the matching team after sign-in; they never grant access by themselves.
 
 ## AI clients and action downloads
 

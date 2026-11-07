@@ -3345,3 +3345,31 @@ kbd {
     display: block;
   }
 }
+.team-member {
+  flex-wrap: wrap;
+}
+.team-member-details {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.team-member-details > span:first-child {
+  max-width: 100%;
+}
+.team-member-details small {
+  flex-basis: 100%;
+  color: #6a735f;
+}
+.team-member-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.member-connected {
+  background: #e8f0dd;
+  color: #405c32;
+}

@@ -73,6 +73,7 @@ export type Team = {
   name: string;
   ownerId: string;
   memberEmails: string[];
+  adminEmails?: string[];
   createdAt: number;
 };
 export type Template = {

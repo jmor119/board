@@ -218,6 +218,7 @@ export async function createTeam(name: string) {
     name: name.trim(),
     ownerId: auth.currentUser!.uid,
     memberEmails: [],
+    adminEmails: [],
     createdAt: Date.now(),
   };
   await setDoc(doc(db, 'teams', team.id), withoutId(team));

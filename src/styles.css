@@ -3366,8 +3366,18 @@ kbd {
 }
 .team-member-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+.team-role-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.team-role-picker select {
+  width: auto;
 }
 .member-connected {
   background: #e8f0dd;

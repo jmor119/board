@@ -17,6 +17,8 @@ import {
   where,
   writeBatch,
   serverTimestamp,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 
 test(
@@ -327,6 +329,94 @@ test(
           await assertFails(getDoc(doc(member, 'boards', 'team-board')));
         },
       );
+      await t.test('team admins manage members only within their assigned teams', async () => {
+        const team = {
+          ownerId: 'host',
+          name: 'Delegated team',
+          memberEmails: ['member@example.com'],
+          createdAt: Date.now(),
+        };
+        await assertSucceeds(setDoc(doc(host, 'teams', 'delegated'), team));
+        await assertSucceeds(setDoc(doc(host, 'teams', 'other-team'), team));
+        await assertFails(
+          updateDoc(doc(member, 'teams', 'delegated'), { adminEmails: ['member@example.com'] }),
+        );
+        await assertSucceeds(
+          updateDoc(doc(host, 'teams', 'delegated'), { adminEmails: ['member@example.com'] }),
+        );
+        await assertSucceeds(
+          updateDoc(doc(member, 'teams', 'delegated'), {
+            memberEmails: arrayUnion('new@example.com'),
+          }),
+        );
+        await assertSucceeds(
+          updateDoc(doc(member, 'teams', 'delegated'), {
+            memberEmails: arrayRemove('new@example.com'),
+          }),
+        );
+        await assertFails(
+          updateDoc(doc(member, 'teams', 'other-team'), {
+            memberEmails: arrayUnion('new@example.com'),
+          }),
+        );
+        await assertFails(
+          updateDoc(doc(unverified, 'teams', 'delegated'), {
+            memberEmails: arrayUnion('new@example.com'),
+          }),
+        );
+        await assertFails(
+          updateDoc(doc(outsider, 'teams', 'delegated'), {
+            memberEmails: arrayUnion('outsider@example.com'),
+          }),
+        );
+        await assertFails(updateDoc(doc(member, 'teams', 'delegated'), { ownerId: 'member' }));
+        await assertFails(
+          updateDoc(doc(member, 'teams', 'delegated'), { name: 'Changed by admin' }),
+        );
+        await assertFails(updateDoc(doc(member, 'teams', 'delegated'), { adminEmails: [] }));
+        await assertFails(
+          updateDoc(doc(member, 'teams', 'delegated'), {
+            memberEmails: arrayRemove('member@example.com'),
+          }),
+        );
+        await assertSucceeds(
+          updateDoc(doc(host, 'teams', 'delegated'), {
+            memberEmails: arrayUnion('outsider@example.com'),
+            adminEmails: arrayUnion('outsider@example.com'),
+          }),
+        );
+        await assertFails(
+          updateDoc(doc(member, 'teams', 'delegated'), {
+            memberEmails: arrayRemove('outsider@example.com'),
+          }),
+        );
+        await assertFails(
+          updateDoc(doc(member, 'teams', 'delegated'), {
+            adminEmails: arrayUnion('new@example.com'),
+            memberEmails: arrayUnion('new@example.com'),
+          }),
+        );
+        await assertSucceeds(
+          updateDoc(doc(host, 'teams', 'delegated'), {
+            adminEmails: arrayRemove('member@example.com'),
+          }),
+        );
+        await assertFails(
+          updateDoc(doc(member, 'teams', 'delegated'), {
+            memberEmails: arrayUnion('new@example.com'),
+          }),
+        );
+        await assertSucceeds(getDoc(doc(member, 'teams', 'delegated')));
+        await assertFails(
+          updateDoc(doc(host, 'teams', 'delegated'), { adminEmails: ['not-a-member@example.com'] }),
+        );
+        await assertSucceeds(
+          updateDoc(doc(host, 'teams', 'delegated'), {
+            memberEmails: arrayRemove('outsider@example.com'),
+            adminEmails: arrayRemove('outsider@example.com'),
+          }),
+        );
+      });
       await t.test('saved templates and presence are scoped to their owners', async () => {
         await assertSucceeds(
           setDoc(doc(host, 'templates', 't1'), {

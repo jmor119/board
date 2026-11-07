@@ -5,6 +5,7 @@ service cloud.firestore {
     function account() { return signed() && request.auth.token.firebase.sign_in_provider != 'anonymous'; }
     function verified() { return account() && request.auth.token.email_verified == true; }
     function email() { return request.auth.token.email.lower(); }
+    function teamAdmin(t) { return verified() && email() in t.memberEmails && email() in t.get('adminEmails', []); }
     function teamMember(id) {
       let t = get(/databases/$(database)/documents/teams/$(id)).data;
       return account() && (t.ownerId == request.auth.uid || (verified() && email() in t.memberEmails));
@@ -30,8 +31,16 @@ service cloud.firestore {
     match /teams/{id} {
       allow read: if account() && (resource.data.ownerId == request.auth.uid || (verified() && email() in resource.data.memberEmails));
       allow create: if account() && request.resource.data.ownerId == request.auth.uid && validTeam(request.resource.data);
-      allow update: if account() && resource.data.ownerId == request.auth.uid && request.resource.data.ownerId == resource.data.ownerId && validTeam(request.resource.data);
-      function validTeam(t) { return t.keys().hasOnly(['ownerId','name','memberEmails','createdAt']) && t.name is string && t.name.size() > 0 && t.name.size() <= 100 && t.memberEmails is list && t.memberEmails.size() <= 100 && t.createdAt is number; }
+      allow update: if account() && request.resource.data.ownerId == resource.data.ownerId && validTeam(request.resource.data)
+        && (resource.data.ownerId == request.auth.uid || (teamAdmin(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberEmails'])));
+      function validTeam(t) {
+        return t.keys().hasOnly(['ownerId','name','memberEmails','adminEmails','createdAt'])
+          && t.name is string && t.name.size() > 0 && t.name.size() <= 100
+          && t.memberEmails is list && t.memberEmails.size() <= 100 && t.createdAt is number
+          && (!('adminEmails' in t) || (t.adminEmails is list && t.adminEmails.size() <= 100
+            && t.memberEmails.hasAll(t.adminEmails)));
+      }
     }
     match /templates/{id} {
       allow read, delete: if account() && resource.data.ownerId == request.auth.uid;

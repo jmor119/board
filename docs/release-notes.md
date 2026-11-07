@@ -6,6 +6,16 @@ Live application: https://board.fiercespeed.nz
 
 Practice board: https://board.fiercespeed.nz/demo
 
+## Delegated team admins — 7 November 2026
+
+Owners can change each teammate's role between Member and Admin. Verified admins can manage ordinary members and invitation delivery within their assigned teams. Only owners assign roles or remove another admin. Existing teams default to no additional admins. Atomic member updates preserve concurrent changes; email delivery rechecks current admin rights and skips mail after revocation. Board ownership and facilitation permissions remain separate.
+
+Validation: production build, formatting and four Board unit tests passed; all 13 Firestore rule tests passed, including role escalation, cross-team isolation, unverified accounts and demotion. Shared-backend lint/build and 768 unit tests passed, followed by 49 targeted email emulator tests covering delegated sending and delivery-time revocation.
+
+Rendered controls were checked for owner, admin, ordinary member and unverified accounts. Interactive browser testing for this update was unavailable because Chrome reported another extension UI blocking automation.
+
+Live SDK/API checks passed with separate disposable owner/admin accounts: promotion, adding/removing members, successful invitation delivery to the provider's test inbox, rejection of cross-team edits and role escalation, and immediate revocation after demotion. The custom domain serves the new release.
+
 ## Team invitation delivery and status — 7 November 2026
 
 Existing team memberships now show Send invite when no email has been requested, and Resend invite after the first request. New teammates receive a branded invitation through the shared Chronological queue. The owner can refresh account status and see queued, sent or failed delivery separately. Connected means an enabled, verified Board account with team access; it is not online presence or a read receipt. Existing teammates are retained and are not automatically emailed by deployment.

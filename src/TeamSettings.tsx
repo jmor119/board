@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
+import { arrayRemove, arrayUnion } from 'firebase/firestore';
 import { Mail, RefreshCw, Users, X } from 'lucide-react';
 import { db, doc, updateDoc, errorMessage, teamInvitation } from './firebase';
 import type { TeamInviteStatus } from './firebase';
@@ -29,10 +30,15 @@ export default function TeamSettings({
   onError: (message: string) => void;
 }) {
   const owner = team.ownerId === user.uid;
+  const canManage =
+    owner ||
+    (user.emailVerified &&
+      team.memberEmails.includes(user.email?.toLowerCase() || '') &&
+      (team.adminEmails || []).includes(user.email?.toLowerCase() || ''));
   const [email, setEmail] = useState(''),
     [busy, setBusy] = useState(''),
     [members, setMembers] = useState<TeamInviteStatus[]>([]),
-    [loading, setLoading] = useState(owner),
+    [loading, setLoading] = useState(canManage),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [now, setNow] = useState(Date.now());
@@ -50,7 +56,11 @@ export default function TeamSettings({
     }
   }
   useEffect(() => {
-    if (!owner) return;
+    if (!canManage) {
+      setMembers([]);
+      setLoading(false);
+      return;
+    }
     let active = true;
     async function load() {
       try {
@@ -73,7 +83,7 @@ export default function TeamSettings({
       active = false;
       clearInterval(poll);
     };
-  }, [owner, team.id, membershipKey]);
+  }, [canManage, team.id, membershipKey]);
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick);
@@ -96,8 +106,23 @@ export default function TeamSettings({
     setBusy(address);
     try {
       await updateDoc(doc(db, 'teams', team.id), {
-        memberEmails: team.memberEmails.filter((e) => e !== address),
+        memberEmails: arrayRemove(address),
+        ...(owner ? { adminEmails: arrayRemove(address) } : {}),
       });
+    } catch (e) {
+      onError(errorMessage(e));
+    } finally {
+      setBusy('');
+    }
+  }
+  async function changeRole(address: string, admin: boolean) {
+    setBusy(address);
+    setNotice('');
+    try {
+      await updateDoc(doc(db, 'teams', team.id), {
+        adminEmails: admin ? arrayUnion(address) : arrayRemove(address),
+      });
+      setNotice(`${address} is now ${admin ? 'an admin' : 'a member'} of ${team.name}.`);
     } catch (e) {
       onError(errorMessage(e));
     } finally {
@@ -110,7 +135,10 @@ export default function TeamSettings({
       <p className="muted">
         Members sign in with the verified email below to access this team's boards.
       </p>
-      {owner && (
+      <p className="fine-print">
+        Team admins can manage members and invitations in this team. The owner assigns admin roles.
+      </p>
+      {canManage && (
         <>
           <p className="fine-print">
             Connected means they have a verified Board account and can access this team. It does not
@@ -135,6 +163,7 @@ export default function TeamSettings({
         <span className="pill">Owner</span>
       </div>
       {team.memberEmails.map((address) => {
+        const admin = (team.adminEmails || []).includes(address);
         const status = members.find((m) => m.email === address.toLowerCase());
         const seconds = Math.max(0, Math.ceil(((status?.nextSendAt || 0) - now) / 1000));
         return (
@@ -142,7 +171,8 @@ export default function TeamSettings({
             <span className="avatar">{address[0].toUpperCase()}</span>
             <div className="team-member-details">
               <span>{address}</span>
-              {owner && (
+              <span className="pill">{admin ? 'Admin' : 'Member'}</span>
+              {canManage && (
                 <>
                   <span
                     className={`pill ${status?.connection === 'connected' ? 'member-connected' : ''}`}
@@ -165,8 +195,22 @@ export default function TeamSettings({
                 </>
               )}
             </div>
-            {owner && (
+            {canManage && (
               <div className="team-member-actions">
+                {owner && (
+                  <label className="team-role-picker">
+                    <span>Role</span>
+                    <select
+                      aria-label={`Role for ${address}`}
+                      value={admin ? 'admin' : 'member'}
+                      disabled={!!busy}
+                      onChange={(e) => void changeRole(address, e.target.value === 'admin')}
+                    >
+                      <option value="member">Member</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </label>
+                )}
                 <button
                   className="secondary"
                   disabled={!!busy || loading || !user.emailVerified || seconds > 0}
@@ -182,20 +226,22 @@ export default function TeamSettings({
                         ? 'Resend invite'
                         : 'Send invite'}
                 </button>
-                <button
-                  className="icon-button"
-                  aria-label={`Remove ${address}`}
-                  disabled={!!busy}
-                  onClick={() => void remove(address)}
-                >
-                  <X size={16} />
-                </button>
+                {(owner || !admin) && (
+                  <button
+                    className="icon-button"
+                    aria-label={`Remove ${address}`}
+                    disabled={!!busy}
+                    onClick={() => void remove(address)}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
             )}
           </div>
         );
       })}
-      {owner && (
+      {canManage && (
         <>
           {!user.emailVerified && (
             <p className="notice">Verify your email before sending team invitations.</p>
@@ -211,7 +257,7 @@ export default function TeamSettings({
               let added = false;
               try {
                 await updateDoc(doc(db, 'teams', team.id), {
-                  memberEmails: [...new Set([...team.memberEmails, address])],
+                  memberEmails: arrayUnion(address),
                 });
                 added = true;
                 setEmail('');
